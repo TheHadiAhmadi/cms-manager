@@ -155,7 +155,7 @@ app.get("/", async (req, res) => {
                 override_slug: "",
               },
               "u-init":
-                '$watch("name", (value) => slug = override_slug || slugify(value))',
+                '$watch("name", (value) => slug = override_slug || slugify(value, "-"))',
             },
             [
               View({$if: 'loading', style:"position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background-color: #50505050; z-index: 100"}, [
