@@ -1,6 +1,11 @@
 import express from "express";
+import 'dotenv/config'
 import { caproverApi } from "./caproverApi.js";
+import { connect } from "@ulibs/db";
+
 const api = caproverApi("https://captain.server.hadiahmadi.dev");
+
+api.login({password: process.env.CAPROVER_PASSWORD})
 
 import {
   Container,
@@ -16,13 +21,17 @@ import {
   ModalBody,
   View,
   Button,
+  Spinner,
 } from "@ulibs/ui";
 
+const { getModel } = connect({
+  filename: "data/db.json",
+});
 const app = express();
 
 function SiteItem(site) {
-  return Col({ col: 12, colSm: 6, colMd: 4, h: '100' }, [
-    Card({ onClick: "site-settings-" + site.id }, [
+  return Col({ col: 12, colSm: 6, colMd: 4, h: "100" }, [
+    Card({ }, [
       CardBody([
         CardTitle({ tag: "strong" }, site.name),
         View({ d: "flex", flexDirection: "column" }, [
@@ -34,31 +43,47 @@ function SiteItem(site) {
           }),
         ]),
         View({ my: "sm" }, [
-          Button(
-            { color: "primary", ms: "auto", href: "https://" + site.domains[0] + "/admin" },
-            "Manage"
-          ),
+          ButtonGroup([
+            Button(
+              {
+                ms: "auto",
+                onClick: `$modal.open("site-settings-${site.id}")`,
+              },
+              "Settings"
+            ),
+            Button(
+              {
+                color: "primary",
+                href: "https://" + site.domains[0] + "/admin",
+              },
+              "Manage"
+            ),
+          ]),
         ]),
       ]),
     ]),
   ]);
 }
 
-const sites = [
-  {
-    id: 1,
-    name: "Personal Site",
-    domains: ["hadiahmadi.dev", "hadi.cms.hadiahmadi.dev"],
-  },
-  {
-    id: 1,
-    name: "Another Site",
-    domains: ["another.com", "another.cms.hadiahmadi.dev"],
-  },
-];
+// const sites = [
+//   {
+//     id: 1,
+//     name: "Personal Site",
+//     domains: ["hadiahmadi.dev", "hadi.cms.hadiahmadi.dev"],
+//   },
+//   {
+//     id: 1,
+//     name: "Another Site",
+//     domains: ["another.com", "another.cms.hadiahmadi.dev"],
+//   },
+// ];
 
-app.get("/", (req, res) => {
-  console.log('request', req.method)
+app.get("/", async (req, res) => {
+  const sites = await getModel("sites")
+    .query({ perPage: 50 })
+    .then((res) => res.data);
+
+  console.log("request", req.method);
   const header = View(
     {
       bgColor: "base-200",
@@ -116,45 +141,64 @@ app.get("/", (req, res) => {
         Row({ gutter: "lg" }, [sites.map((site) => SiteItem(site))]),
       ]),
       View([]),
-      sites.map(site => Modal({ size: "xs", name: "site-settings-" + site.id }, [
-        ModalBody(
-          {
-            $data: { name: site.name, domains: [], slug: site.domains[0].split('.')[0], override_slug: "" },
-            "u-init":
-              '$watch("name", (value) => slug = override_slug || slugify(value))',
-          },
-          [
-            Row([
-              Input({ label: "Name", name: "name" }),
-              Input({
-                label: "Slug",
-                name: "slug",
-                onInput: "override_slug = $event.target.value",
-              }),
-              Col({ d: "flex", justify: "end" }, [
-                ButtonGroup({ms: 'auto'}, [
-                  Button({ onClick: "$modal.close()" }, "Cancel"),
-                  Button(
-                    {
-                      color: "primary",
-                      onClick: `$post("/create?id=${site.id}&name=" + name + "&slug=" + slug).then(res => location.reload())`,
-                    },
-                    "Update"
-                  ),
+      sites.map((site) =>
+        Modal({ size: "xs", name: "site-settings-" + site.id }, [
+          
+          ModalBody(
+            {
+              style:"position: relative", 
+              $data: {
+                loading: false,
+                name: site.name,
+                domains: [],
+                slug: site.domains[0].split(".")[0],
+                override_slug: "",
+              },
+              "u-init":
+                '$watch("name", (value) => slug = override_slug || slugify(value))',
+            },
+            [
+              View({$if: 'loading', style:"position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background-color: #50505050; z-index: 100"}, [
+                Spinner({color: 'primary', size: 'lg'})
+              ]),
+              Row([
+                Input({ label: "Name", name: "name" }),
+                Input({
+                  label: "Slug",
+                  name: "slug",
+                  onInput: "override_slug = $event.target.value",
+                }),
+                Col({ d: "flex", mt: "lg", justify: "end" }, [
+                  ButtonGroup({ ms: "auto" }, [
+                    Button({ onClick: "$modal.close()" }, "Cancel"),
+                    Button({onClick: `loading=true;$post("/remove?id=${site.id}").then(res => location.reload())`, color: 'danger'}, "Remove"),
+                    Button(
+                      {
+                        color: "primary",
+                        onClick: `loading=true;$post("/update?id=${site.id}&name=" + name + "&slug=" + slug).then(res => location.reload())`,
+                      },
+                      "Update"
+                    ),
+                  ]),
                 ]),
               ]),
-            ]),
-          ]
-        ),
-      ])),
+            ]
+          ),
+        ])
+      ),
       Modal({ size: "xs", name: "add-modal" }, [
+        
         ModalBody(
           {
-            $data: { name: "", domains: [], slug: "", override_slug: "" },
+            style: "position:relative",
+            $data: { loading: false, name: "", domains: [], slug: "", override_slug: "" },
             "u-init":
               '$watch("name", (value) => slug = override_slug || slugify(value))',
           },
           [
+            View({$if: 'loading', style:"position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background-color: #50505050; z-index: 100"}, [
+              Spinner({color: 'primary', size: 'lg'})
+            ]),
             Row([
               Input({ label: "Name", name: "name" }),
               Input({
@@ -162,13 +206,14 @@ app.get("/", (req, res) => {
                 name: "slug",
                 onInput: "override_slug = $event.target.value",
               }),
-              Col({ d: "flex", justify: "end" }, [
+              Col({ d: "flex", mt: "lg", justify: "end" }, [
                 ButtonGroup([
                   Button({ onClick: "$modal.close()" }, "Cancel"),
                   Button(
                     {
                       color: "primary",
-                      onClick: '$post("/create?name=" + name + "&slug=" + slug).then(res => location.reload())',
+                      onClick:
+                        'loading=true;$post("/create?name=" + name + "&slug=" + slug).then(res => location.reload())',
                     },
                     "Add"
                   ),
@@ -184,26 +229,55 @@ app.get("/", (req, res) => {
   res.send(page.toHtml());
 });
 
-app.use(express.json())
+app.use(express.json());
 
-app.post('/create', (req, res) => {
-    const {name, slug} = req.query;
+app.post("/create", async (req, res) => {
+  const { name, slug } = req.query;
 
-    sites.push({id: 'id_' + Math.random(), name, domains: [slug + '.cms.hadiahmadi.dev']})
-    res.send({message: 'Success'})
-})
+  const domain = slug + ".cms.hadiahmadi.dev"
+  
+  await getModel("sites").insert({
+    name,
+    domains: [domain],
+  });
 
-app.post('/update', (req, res) => {
-    const {name, slug, id} = req.query;
-    sites = sites.map(site => {
-        if(site.id === id) return {
-            ...site, 
-            name,
-            domains: [slug + '.cms.hadiahmadi.dev']
-        }
-        return site
-    })
-    res.send({message: 'Success'})
+  await api.attachNewCustomDomainToApp({appName: 'cms', customDomain: slug + ".cms.hadiahmadi.dev"})
+  setTimeout(async () => {
+    await api.enableSslForCustomDomain({appName: 'cms', customDomain: domain})
+    res.send({ message: "Success" });
+  }, 1000) 
+});
+
+app.post("/update", async (req, res) => {
+  const { name, slug, id } = req.query;
+  const appl = await getModel('sites').get({where: {id}})
+  await getModel("sites").update(id, {
+    name,
+    domains: [slug + ".cms.hadiahmadi.dev"],
+  });
+
+  await api.removeCustomDomain({appName: 'cms', customDomain: appl.domains[0].split('.')[0]})
+  
+  await api.attachNewCustomDomainToApp({appName: 'cms', customDomain: slug + ".cms.hadiahmadi.dev"})
+  setTimeout(async () => {
+    await api.enableSslForCustomDomain({appName: 'cms', customDomain: domain})
+    res.send({ message: "Success" });
+  }, 1000) 
+  
+  res.send({ message: "Success" });
+});
+
+
+app.post('/remove', async  (req, res) => {
+  const { id } = req.query;
+  const appl = await getModel('sites').get({where: {id}})
+  console.log({appl} ,appl)
+
+  await getModel("sites").remove(id);
+
+  await api.removeCustomDomain({appName: 'cms', customDomain: appl.domains[0]})
+    
+  res.send({ message: "Success" });
 
 })
 
