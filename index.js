@@ -58,6 +58,7 @@ const sites = [
 ];
 
 app.get("/", (req, res) => {
+  console.log('request', req.method)
   const header = View(
     {
       bgColor: "base-200",
