@@ -232,6 +232,9 @@ app.get("/", async (req, res) => {
 
 app.use(express.json());
 
+
+// SKIP adding Domain for localhost..
+
 app.post("/create", async (req, res) => {
   const { name, slug } = req.query;
 
