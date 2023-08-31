@@ -1,7 +1,8 @@
 import express from "express";
+import {existsSync, mkdirSync, renameSync, writeFileSync} from 'fs'
 import 'dotenv/config'
 import { caproverApi } from "./caproverApi.js";
-import { connect } from "@ulibs/db";
+import { connect, id as get_id } from "@ulibs/db";
 
 const api = caproverApi("https://captain.server.hadiahmadi.dev");
 
@@ -236,10 +237,14 @@ app.post("/create", async (req, res) => {
 
   const domain = slug + ".cms.hadiahmadi.dev"
   
-  await getModel("sites").insert({
+  const [id] = await getModel("sites").insert({
     name,
     domains: [domain],
   });
+
+  mkdirSync('data/' + id);  
+  mkdirSync('data/' + id + '/assets');  
+  writeFileSync('data/' + id + '/db.json', '{}')
 
   await api.attachNewCustomDomainToApp({appName: 'cms', customDomain: slug + ".cms.hadiahmadi.dev"})
   setTimeout(async () => {
@@ -275,6 +280,12 @@ app.post('/remove', async  (req, res) => {
 
   await getModel("sites").remove(id);
 
+  if(!existsSync('data/backups')) {
+    mkdirSync('data/backups')
+
+  }
+  renameSync('data/' + id, 'data/backups/' + id + '-' + get_id())
+  
   await api.removeCustomDomain({appName: 'cms', customDomain: appl.domains[0]})
     
   res.send({ message: "Success" });
